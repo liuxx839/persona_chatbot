@@ -8,6 +8,7 @@ from persona import PERSONAS # Import personas
 from groq import Groq
 import compressed_memory as cm
 import detailed_memory as dm
+import os
 
 # --- 配置 ---
 MAX_HISTORY_LEN = 20 # LLM 可见的最大消息数
