@@ -18,11 +18,12 @@ MEMORY_COMPRESSION_INTERVAL = 3 # 每隔多少次记忆更新压缩一次记忆
 
 # --- Groq API 设置 ---
 try:
-    # client = ZhipuAI(api_key='65597dabfc8a8220298b47f25bbd0c65.FUXaG8j5PeArCsRc')
+    # client = ZhipuAI(api_key='')
     # LLM_MODEL = "glm-4-flash" # Zhipu AI model
-    # client = Groq(api_key='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')
+    # client = Groq(api_key='')
     # LLM_MODEL = "llama3-70b-8192" # Groq 模型
-    client = OpenAI(api_key='AIzaSyAFjHPTAFS3z-wNBEcmEjiZdg9ru0RKB6w',base_url="https://generativelanguage.googleapis.com/v1beta/")
+    api_key = os.environ.get("GEMINI_API_KEY")
+    client = OpenAI(api_key=api_key,base_url="https://generativelanguage.googleapis.com/v1beta/")
     LLM_MODEL = "gemini-2.0-flash" # Groq 模型
 
 except KeyError:
