@@ -308,6 +308,74 @@ with st.sidebar:
     st.header("聊天室控制")
     st.session_state.user_name = st.text_input("你的名字", value=st.session_state.user_name)
 
+    # 新增：用户上传persona内容
+    st.subheader("添加自定义角色")
+    uploaded_persona = st.text_area("输入你的自定义角色描述（例如背景、职责等）", height=150)
+    if st.button("添加自定义角色"):
+        if uploaded_persona:
+            try:
+                # 使用LLM将用户输入转换为persona格式
+                prompt = (
+                    f"你是一个助手，将用户提供的角色描述转换为以下JSON格式的persona结构：\n"
+                    f"{{\n"
+                    f'  "name": "姓名",\n'
+                    f'  "description": "角色职责和特点描述",\n'
+                    f'  "background": "角色的教育、经验或专业背景",\n'
+                    f'  "greeting": "角色在聊天室中的开场白"\n'
+                    f"}}\n\n"
+                    f"用户提供的描述：\n{uploaded_persona}\n\n"
+                    f"请分析输入，提取关键信息，生成一个符合上述格式的persona。确保内容简洁、符合角色设定，且greeting自然且与角色背景相关。"
+                    f"直接返回符合JSON格式的persona对象，不要有任何额外说明或解释。"
+                    f"如果用户输入不包含足够的角色信息，请拒绝生成并返回字符串'INVALID_INPUT'。"
+                )
+                completion = client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "system", "content": "你是一个擅长提取和格式化信息的助手。"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5,
+                    max_tokens=300
+                )
+                result = completion.choices[0].message.content.strip()
+                # print(result)
+                # 检查是否为无效输入
+                if result == "INVALID_INPUT":
+                    st.warning("输入内容不足以创建有意义的角色。请提供更详细的角色描述。")
+                else:
+                    # 解析LLM返回的JSON
+                    import json
+                    # 查找JSON内容的开始和结束位置
+                    json_start = result.find("{")
+                    json_end = result.rfind("}") + 1
+                    if json_start >= 0 and json_end > json_start:
+                        new_persona_json = result[json_start:json_end]
+                        new_persona = json.loads(new_persona_json)
+                        
+                        # 验证必要字段
+                        required_fields = ["name", "description", "background", "greeting"]
+                        if all(field in new_persona for field in required_fields):
+                            # 直接添加到PERSONAS列表
+                            PERSONAS.append(new_persona)
+                            
+                            # 同时更新会话状态
+                            st.session_state.bot_personas_data[new_persona["name"]] = new_persona
+                            st.session_state.bots_in_chat.append(new_persona["name"])
+                            st.session_state.bot_memories[new_persona["name"]] = (
+                                f"初始记忆：我的名字是 {new_persona['name']}。{new_persona['background']}"
+                            )
+                            st.success(f"已成功添加角色 {new_persona['name']} 到模拟对话角色列表！")
+                        else:
+                            st.error("生成的persona缺少必要字段，请提供更详细的角色描述。")
+                    else:
+                        st.error("无法解析返回的JSON格式，请检查输入内容或尝试重新提交。")
+                        
+            except Exception as e:
+                st.error(f"处理自定义角色时出错：{str(e)}")
+                st.code(result, language="json")  # 显示原始返回结果以便调试
+        else:
+            st.warning("请提供角色描述后再添加。")
+
     available_bots = [p["name"] for p in PERSONAS]
     st.session_state.bots_in_chat = st.multiselect(
         "选择聊天中的机器人",
