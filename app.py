@@ -299,7 +299,7 @@ if "last_speaker" not in st.session_state:
 if "user_name" not in st.session_state:
     st.session_state.user_name = f"用户_{random.randint(1000, 9999)}"
 if "bots_in_chat" not in st.session_state:
-    st.session_state.bots_in_chat = [p["name"] for p in PERSONAS[:6]] # 以前3个机器人开始
+    st.session_state.bots_in_chat = [p["name"] for p in PERSONAS[:16]] # 以前3个机器人开始
 if "memory_updates_count" not in st.session_state:
     st.session_state.memory_updates_count = {} # 记录每个角色记忆更新的次数
 
