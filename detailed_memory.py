@@ -53,17 +53,34 @@ def append_to_detailed_memory(persona_name, memory_entry):
     detailed_memories[persona_name].append(memory_with_timestamp)
     save_detailed_memories(detailed_memories)
 
-def get_detailed_memory(persona_name):
-    """获取特定角色的完整详细记忆"""
+def get_detailed_memory(persona_name, max_entries=20, get_all=False):
+    """
+    获取特定角色的详细记忆
+    
+    参数:
+        persona_name: 角色名称
+        max_entries: 默认情况下返回的最大记忆条目数
+        get_all: 若为True，则返回所有记忆条目，忽略max_entries参数
+    
+    返回:
+        格式化的记忆字符串
+    """
     detailed_memories = load_detailed_memories()
     memory_entries = detailed_memories.get(persona_name, [])
     
     if not memory_entries:
         return "尚无详细记忆记录。"
     
-    # 格式化输出所有记忆条目
+    # 决定使用哪些记忆条目
+    if get_all:
+        entries_to_use = memory_entries  # 使用所有记忆条目
+    else:
+        # 只取最近的max_entries条记忆
+        entries_to_use = memory_entries[-max_entries:] if len(memory_entries) > max_entries else memory_entries
+    
+    # 格式化输出选定的记忆条目
     formatted_memory = ""
-    for entry in memory_entries:
+    for entry in entries_to_use:
         formatted_memory += f"[{entry['timestamp']}]\n{entry['content']}\n\n"
     
     return formatted_memory
