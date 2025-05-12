@@ -96,7 +96,7 @@ def update_bot_memory(persona_name, persona_details, chat_history, current_memor
         return current_memory # 没有新信息
 
     # 提取与机器人相关的最近对话片段
-    relevant_history_snippet = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-5:]])
+    relevant_history_snippet = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-MAX_HISTORY_LEN:]])
 
     prompt = (
         f"你是一个AI助手，帮助 {persona_name}（{persona_details['description']}）更新其记忆。\n"
