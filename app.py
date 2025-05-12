@@ -271,6 +271,13 @@ def determine_next_speaker(history, available_bots, last_speaker, user_name):
         # 出错时回退到随机选择
         return random.choice(eligible_bots)
 
+def get_avatar_url(persona_name):
+    """
+    Retrieve the avatar URL for a persona from bot_personas_data.
+    """
+    persona = st.session_state.bot_personas_data.get(persona_name, {})
+    return persona.get("avatar", f"https://api.dicebear.com/9.x/personas/svg?seed={persona_name}")
+    
 # --- Streamlit 应用 ---
 
 st.set_page_config(page_title="LLM 聊天室", layout="wide")
@@ -281,6 +288,11 @@ if "messages" not in st.session_state:
     st.session_state.messages = [] # 完整聊天历史：{"role": "name", "content": "text", "timestamp": datetime}
 if "bot_personas_data" not in st.session_state:
     st.session_state.bot_personas_data = {p["name"]: p for p in PERSONAS}
+    # Add avatar to each persona if not present
+    for name, details in st.session_state.bot_personas_data.items():
+        if "avatar" not in details:
+            # Generate avatar using DiceBear with persona name as seed
+            details["avatar"] = f"https://api.dicebear.com/9.x/personas/svg?seed={name}"
 if "bot_memories" not in st.session_state:
     st.session_state.bot_memories = {}
     # 初始化每个角色的工作记忆，并从压缩记忆加载
@@ -355,6 +367,8 @@ with st.sidebar:
                         # 验证必要字段
                         required_fields = ["name", "description", "background", "greeting"]
                         if all(field in new_persona for field in required_fields):
+                            # Add avatar to new persona
+                            new_persona["avatar"] = f"https://api.dicebear.com/9.x/personas/svg?seed={new_persona['name']}"
                             # 直接添加到PERSONAS列表
                             PERSONAS.append(new_persona)
                             
@@ -453,7 +467,7 @@ with st.sidebar:
 chat_container = st.container()
 with chat_container:
     for msg in st.session_state.messages:
-        avatar = "🧑‍💻" if msg["role"] == st.session_state.user_name else "🤖"
+        avatar = "🧑‍💻" if msg["role"] == st.session_state.user_name else get_avatar_url(msg["role"])
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(f"**{msg['role']}** ({msg['timestamp'].strftime('%H:%M:%S')}):")
             st.write(msg["content"])
