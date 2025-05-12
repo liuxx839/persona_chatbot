@@ -31,6 +31,7 @@ except KeyError:
     st.error("API 密钥未找到。请在 .streamlit/secrets.toml 中设置它")
     st.stop()
 
+
 # --- 辅助函数 ---
 
 def get_llm_response(persona_name, persona_details, chat_history, bot_memory, compressed_memory_text=""):
@@ -148,7 +149,7 @@ def update_bot_memory(persona_name, persona_details, chat_history, current_memor
         # 定期将详细记忆压缩到压缩记忆中
         if st.session_state.memory_updates_count[persona_name] % MEMORY_COMPRESSION_INTERVAL == 0:
             # 获取完整的详细记忆用于压缩
-            full_detailed_memory = dm.get_detailed_memory(persona_name)
+            full_detailed_memory = dm.get_detailed_memory(persona_name,max_entries=MAX_BOT_MEMORY_LEN)
             # 获取当前压缩记忆
             current_compressed = cm.get_compressed_memory(persona_name)
             # 更新压缩记忆
@@ -270,14 +271,14 @@ def determine_next_speaker(history, available_bots, last_speaker, user_name):
         st.error(f"使用LLM决定下一个发言者时出错：{e}")
         # 出错时回退到随机选择
         return random.choice(eligible_bots)
-
+    
 def get_avatar_url(persona_name):
     """
     Retrieve the avatar URL for a persona from bot_personas_data.
     """
     persona = st.session_state.bot_personas_data.get(persona_name, {})
     return persona.get("avatar", f"https://api.dicebear.com/9.x/personas/svg?seed={persona_name}")
-    
+
 # --- Streamlit 应用 ---
 
 st.set_page_config(page_title="LLM 聊天室", layout="wide")
@@ -311,7 +312,7 @@ if "last_speaker" not in st.session_state:
 if "user_name" not in st.session_state:
     st.session_state.user_name = f"用户_{random.randint(1000, 9999)}"
 if "bots_in_chat" not in st.session_state:
-    st.session_state.bots_in_chat = [p["name"] for p in PERSONAS[:16]] # 以前3个机器人开始
+    st.session_state.bots_in_chat = [p["name"] for p in PERSONAS[:6]] # 以前3个机器人开始
 if "memory_updates_count" not in st.session_state:
     st.session_state.memory_updates_count = {} # 记录每个角色记忆更新的次数
 
@@ -367,7 +368,6 @@ with st.sidebar:
                         # 验证必要字段
                         required_fields = ["name", "description", "background", "greeting"]
                         if all(field in new_persona for field in required_fields):
-                            # Add avatar to new persona
                             new_persona["avatar"] = f"https://api.dicebear.com/9.x/personas/svg?seed={new_persona['name']}"
                             # 直接添加到PERSONAS列表
                             PERSONAS.append(new_persona)
@@ -427,7 +427,7 @@ with st.sidebar:
                 
                 # 添加详细记忆查看按钮
                 if st.button(f"查看 {bot_name} 的完整详细记忆", key=f"view_detailed_{bot_name}"):
-                    detailed_mem = dm.get_detailed_memory(bot_name)
+                    detailed_mem = dm.get_detailed_memory(bot_name,get_all=True)
                     st.session_state[f"show_detailed_{bot_name}"] = True
                     st.session_state[f"detailed_mem_{bot_name}"] = detailed_mem
                 
@@ -489,7 +489,8 @@ def bot_autonomous_turn():
     if chosen_bot_name:
         persona_details = st.session_state.bot_personas_data[chosen_bot_name]
         bot_memory = st.session_state.bot_memories[chosen_bot_name]
-
+        #获取压缩记忆
+        compressed_memory_text = cm.get_compressed_memory(chosen_bot_name)
         # time.sleep(random.uniform(BOT_RESPONSE_DELAY[0], BOT_RESPONSE_DELAY[1]))
 
         with st.spinner(f"{chosen_bot_name} 正在输入..."):
@@ -497,7 +498,8 @@ def bot_autonomous_turn():
                 chosen_bot_name,
                 persona_details,
                 st.session_state.messages,
-                bot_memory
+                bot_memory,
+                compressed_memory_text
             )
 
         if bot_response:
