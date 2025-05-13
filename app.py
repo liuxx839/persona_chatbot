@@ -14,7 +14,7 @@ import os
 MAX_HISTORY_LEN = 20 # LLM 可见的最大消息数
 MAX_BOT_MEMORY_LEN = 20 # 每个机器人工作记忆的最大条目数
 SUMMARY_INTERVAL = 3 # 每隔多少轮总消息进行一次总结
-BOT_RESPONSE_DELAY = (0, 0) # 机器人响应延迟秒数范围（最小值，最大值）
+BOT_RESPONSE_DELAY = (1, 2) # 机器人响应延迟秒数范围（最小值，最大值）
 MEMORY_COMPRESSION_INTERVAL = 3 # 每隔多少次记忆更新压缩一次记忆
 
 # --- Groq API 设置 ---
@@ -279,6 +279,41 @@ def get_avatar_url(persona_name):
     persona = st.session_state.bot_personas_data.get(persona_name, {})
     return persona.get("avatar", f"https://api.dicebear.com/9.x/personas/svg?seed={persona_name}")
 
+# --- 新增辅助函数 ---
+def generate_conversation_report(chat_history):
+    """
+    生成整个对话历史的综合报告。
+    """
+    if not chat_history:
+        return "没有对话可生成报告。"
+
+    prompt = (
+        "你是一个专业的报告生成助手。请总结以下完整的聊天对话历史，生成一份简洁的报告。\n"
+        "报告应包括以下内容：\n"
+        "1. 对话的主要话题和主题\n"
+        "2. 关键讨论点、决定或结论\n"
+        "3. 参与者的主要观点或角色动态（例如谁主导了讨论，谁提出了关键问题等）\n"
+        "4. 任何明显的冲突或共识\n"
+        "5. 对话的整体进展和结果\n\n"
+        "对话历史：\n" + "\n".join([f"{msg['role']}: {msg['content']} ({msg['timestamp'].strftime('%H:%M:%S')})" for msg in chat_history]) + "\n\n"
+        "请以清晰、结构化的格式生成报告，字数控制在300字以内，适合快速阅读。"
+    )
+    try:
+        completion = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": "你是一位专业的总结和报告生成专家。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=2000
+        )
+        report = completion.choices[0].message.content.strip()
+        return report
+    except Exception as e:
+        st.error(f"生成报告时出错：{e}")
+        return "由于错误，无法生成报告。"
+
 # --- Streamlit 应用 ---
 
 st.set_page_config(page_title="LLM 聊天室", layout="wide")
@@ -312,7 +347,7 @@ if "last_speaker" not in st.session_state:
 if "user_name" not in st.session_state:
     st.session_state.user_name = f"用户_{random.randint(1000, 9999)}"
 if "bots_in_chat" not in st.session_state:
-    st.session_state.bots_in_chat = [p["name"] for p in PERSONAS[:16]] # 以前3个机器人开始
+    st.session_state.bots_in_chat = [p["name"] for p in PERSONAS[:6]] # 以前3个机器人开始
 if "memory_updates_count" not in st.session_state:
     st.session_state.memory_updates_count = {} # 记录每个角色记忆更新的次数
 
@@ -390,6 +425,27 @@ with st.sidebar:
         else:
             st.warning("请提供角色描述后再添加。")
 
+    # 新增：预设群组选择
+    from group import GROUPS  # 导入群组定义
+    group_options = ["无预设群组"] + [group["name"] for group in GROUPS]
+    selected_group = st.selectbox(
+        "选择一个预设聊天群组",
+        options=group_options,
+        index=0,
+        help="选择一个预设群组以快速填充聊天角色，或选择“无预设群组”以手动选择。"
+    )
+
+    # 当群组被选择时，更新bots_in_chat
+    if selected_group != "无预设群组":
+        for group in GROUPS:
+            if group["name"] == selected_group:
+                st.session_state.bots_in_chat = group["personas"]
+                st.info(f"已加载 {selected_group}：{group['description']}")
+                break
+    else:
+        # 如果选择“无预设群组”，保持当前bots_in_chat（用户可以手动选择）
+        pass
+        
     available_bots = [p["name"] for p in PERSONAS]
     st.session_state.bots_in_chat = st.multiselect(
         "选择聊天中的机器人",
@@ -519,15 +575,24 @@ if st.session_state.get("force_bot_turn", False):
     if bot_autonomous_turn():
         st.rerun()
 
-# --- 用户输入 ---
+# --- 用户输入（修正版） ---
+# 保持聊天输入框在主布局中
 if prompt := st.chat_input(f"以 {st.session_state.user_name} 的身份聊天..."):
     timestamp = datetime.now()
     st.session_state.messages.append({"role": st.session_state.user_name, "content": prompt, "timestamp": timestamp})
     st.session_state.last_speaker = st.session_state.user_name
     st.session_state.conversation_rounds += 1
-
+    
     bot_responded_after_user = bot_autonomous_turn()
     st.rerun()
+
+# 将报告按钮放在聊天输入框上方或侧边，但不要使用影响聊天输入框位置的列布局
+if st.button("生成对话报告", key="generate_report"):
+    with st.spinner("正在生成对话报告..."):
+        report = generate_conversation_report(st.session_state.messages)
+        st.session_state.summaries.append(report)
+        st.toast("对话报告已生成并添加到总结列表！")
+        st.rerun()
 
 # --- 总结逻辑 ---
 if st.session_state.conversation_rounds > 0 and \
@@ -592,6 +657,10 @@ if "auto_bot_turns" in st.session_state and st.session_state.auto_bot_turns > 0:
     
     if st.session_state.current_auto_turn < st.session_state.auto_bot_turns:
         with st.spinner(f"自动对话进行中... (第 {st.session_state.current_auto_turn + 1}/{st.session_state.auto_bot_turns} 轮)"):
+            # 添加随机延迟
+            delay = random.uniform(BOT_RESPONSE_DELAY[0], BOT_RESPONSE_DELAY[1])
+            time.sleep(delay)
+            
             if bot_autonomous_turn():
                 st.session_state.current_auto_turn += 1
                 # 检查是否需要生成总结
