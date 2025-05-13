@@ -78,7 +78,7 @@ def get_llm_response(persona_name, persona_details, chat_history, bot_memory, co
             model=LLM_MODEL,
             messages=messages_for_llm,
             temperature=0.7,
-            max_tokens=150
+            max_tokens=500
         )
         response = completion.choices[0].message.content.strip()
         return response
@@ -114,7 +114,7 @@ def update_bot_memory(persona_name, persona_details, chat_history, current_memor
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=100
+            max_tokens=500
         )
         update = completion.choices[0].message.content.strip()
         if "没有重要更新" in update.lower() or "no significant updates" in update.lower():
@@ -181,7 +181,7 @@ def get_conversation_summary(chat_history_to_summarize):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=300
+            max_tokens=500
         )
         summary = completion.choices[0].message.content.strip()
         return summary
